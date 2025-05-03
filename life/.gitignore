@@ -1,0 +1,10 @@
+
+# pixi environments
+.pixi
+*.egg-info
+# magic environments
+.magic
+main
+matmul
+matmul2
+__pycache__/
