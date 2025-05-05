@@ -344,7 +344,133 @@ CUDA wymaga znajomości C/C++ oraz specyficznych konstrukcji NVIDIA, co tworzy w
 
 Mojo oferuje składnie podobną do Pythona, zachowując przy tym możliwość mikrozarządzania pamięcią i wydajnością. Dzięki MLIR może kierować kod na różne akceleratory (GPU, TPU, NPU) bez zmian w kodzie źródłowym.
 
-## Przykład - Dodawanie elementów macierzy
+## Kernele
+
+Kernel jest to po prostu funckja wykonywana na wysokiej przepustowości akceleratorach, jak GPU.
+
+Zdefiniujmy funkcje, która dodaje dwa wektory na CPU i kernel, który dodaje je na GPU.
+
+```py
+fn _vector_addition_cpu(out: ManagedTensorSlice[mut=True], 
+                       lhs: ManagedTensorSlice, 
+                       rhs: ManagedTensorSlice):
+    var vector_length = out.dim_size(0)
+    for i in range(vector_length):
+        var idx = IndexList[out.rank](i)
+        var result = lhs.load[1](idx) + rhs.load[1](idx)
+        out.store[1](idx, result)
+
+fn _vector_addition_gpu(out: ManagedTensorSlice[mut=True], 
+                       lhs: ManagedTensorSlice, 
+                       rhs: ManagedTensorSlice, 
+                       ctx: DeviceContextPtr):
+    # Rozmiar bloku - liczba wątków w jednym bloku
+    alias BLOCK_SIZE = 16
+    var gpu_ctx = ctx.get_device_context()
+    var vector_length = out.dim_size(0)
+    
+    # Definicja kernela GPU
+    @parameter
+    fn vector_addition_gpu_kernel(length: Int):
+        # Obliczenie indeksu wątku
+        var tid = block_dim.x * block_idx.x + thread_idx.x
+        # Sprawdzenie, czy wątek mieści się w zakresie danych
+        if tid < length:
+            var idx = IndexList[out.rank](tid)
+            var result = lhs.load[1](idx) + rhs.load[1](idx)
+            out.store[1](idx, result)
+    
+    # Obliczenie liczby bloków potrzebnych do pokrycia całego wektora
+    var num_blocks = ceildiv(vector_length, BLOCK_SIZE)
+    
+    # Uruchomienie kernela na GPU
+    gpu_ctx.enqueue_function[vector_addition_gpu_kernel](
+        vector_length, grid_dim=num_blocks, block_dim=BLOCK_SIZE
+    )
+```
+
+Teraz przykład dispatchera w Mojo, który wykona odpowiednią funkcje w zależności od dostępnego akceleratora.
+
+```py
+@compiler.register("vector_addition")
+struct VectorAddition:
+    @staticmethod
+    fn execute[
+        target: StaticString,
+    ](
+        out: OutputTensor[rank=1],
+        lhs: InputTensor[type = out.type, rank = out.rank],
+        rhs: InputTensor[type = out.type, rank = out.rank],
+        ctx: DeviceContextPtr,
+    ) raises:
+        # Podczas kompilacji grafu, wiemy na które urządzenie kompilujemy
+        @parameter
+        if target == "cpu":
+            _vector_addition_cpu(out, lhs, rhs, ctx)
+        elif target == "gpu":
+            _vector_addition_gpu(out, lhs, rhs, ctx)
+        else:
+            raise Error("No known target:", target)
+```
+
+Tworzymy graf obliczeniowy dla naszego kernela, kompilujemy go i uruchamiamy na odpowiednim akceleratorze.
+
+```py
+from pathlib import Path
+import numpy as np
+from max.driver import CPU, Accelerator, Tensor, accelerator_count
+from max.dtype import DType
+from max.engine import InferenceSession
+from max.graph import DeviceRef, Graph, TensorType, ops
+
+if __name__ == "__main__":
+    mojo_kernels = Path(__file__).parent / "kernels"
+    
+    vector_width = 10
+    dtype = DType.float32
+    
+    device = CPU() if accelerator_count() == 0 else Accelerator()
+    
+    with Graph(
+        "vector_addition",
+        input_types=[
+            TensorType(dtype, shape=[vector_width], device=DeviceRef.from_device(device)),
+            TensorType(dtype, shape=[vector_width], device=DeviceRef.from_device(device)),
+        ],
+        custom_extensions=[mojo_kernels],
+    ) as graph:
+        lhs, rhs = graph.inputs
+        
+        output = ops.custom(
+            name="vector_addition",  # Nazwa kernela
+            values=[lhs, rhs],       # Wejścia
+            out_types=[TensorType(dtype=lhs.tensor.dtype, shape=lhs.tensor.shape, 
+                      device=DeviceRef.from_device(device))]
+        )[0].tensor
+        
+        graph.output(output)
+    
+    session = InferenceSession(devices=[device])
+    
+    # Skompilowanie grafu pod wybrane urządzenie
+    model = session.load(graph)
+    
+    lhs_values = np.random.uniform(size=(vector_width)).astype(np.float32)
+    rhs_values = np.random.uniform(size=(vector_width)).astype(np.float32)
+    
+    lhs_tensor = Tensor.from_numpy(lhs_values).to(device)
+    rhs_tensor = Tensor.from_numpy(rhs_values).to(device)
+    
+    # Wykonanie obliczenia
+    result = model.execute(lhs_tensor, rhs_tensor)[0]
+    
+    result = result.to(CPU())
+    print("Wynik:", result.to_numpy())
+    print("Oczekiwany wynik:", lhs_values + rhs_values) # wykona sie na CPU
+```
+
+
+## Porównanie prostszych kerneli - CUDA vs Mojo
 
 ```c
 #include <stdio.h>
@@ -485,8 +611,6 @@ Jak widać, w takim prostym przypadku, gdzie kod jest niemal identyczny i nie wy
 ## TODO: przykład jak działa computation graph, lazy-execution, parallel
 
 ## TODO: benchmark z GPU, ale wynając maszyne z GPU, które wspiera mikroarchitekture Ampere
-
-## TODO: kernele
 
 https://docs.modular.com/max/tutorials/build-custom-ops
 
