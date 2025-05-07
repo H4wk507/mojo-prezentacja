@@ -608,13 +608,79 @@ Jak widać, w takim prostym przypadku, gdzie kod jest niemal identyczny i nie wy
 
 ## TODO: moze jakis przyklad z modelem ML?
 
-## TODO: przykład jak działa computation graph, lazy-execution, parallel
-
 ## TODO: benchmark z GPU, ale wynając maszyne z GPU, które wspiera mikroarchitekture Ampere
+
+## TODO: po skonczeniu wszystkiego - cleanup
 
 https://docs.modular.com/max/tutorials/build-custom-ops
 
-https://docs.modular.com/max/tutorials/get-started-with-max-graph-in-python/
+
+## Grafy obliczeniowe
+
+Graf obliczeniowy to struktura danych, która reprezentuje operacje obliczeniowe jako węzły (operacje) i krawędzie (dane). Jest ona wykorzystywana w frameworkach uczenia maszynowego, jak PyTorch i jest generowany podczas forward oraz backward pass. Następnie jest używany do liczenia gradientów funkcji podczas propagacji wstecznej i do różnych optymalizacji obliczeń przy użyciu leniwego wykonania (lazy execution).
+
+![Graf obliczeniowy](https://discuss.pytorch.org/uploads/default/original/3X/0/3/0357bad8bd423d8a12b5e528dc68dca3773c4b54.png)
+
+Przykład optymalizacji, jakie możemy wykonać mając graf obliczeniowy, to m.in fuzja operacji:
+```
+c = a + b
+d = b * c
+1 add, 1 mul, 4 loads, 2 stores
+
+d = b * (a + b)
+1 add, 1 mul, 2 load, 1 store
+```
+
+Dzięki leniwego wykonania, węzły grafu nie są wykonywane od razu, a jedynie wtedy, gdy są potrzebne. Pozwala to na optymalizację obliczeń i zmniejszenie liczby operacji.
+
+Czy paralelizacja operacji:
+```
+c = a * b
+e = c * d
+```
+
+Te dwie operacje są od siebie niezależne, więc można je wykonać równolegle. Mojo
+(zależnie od tego pod jaką architekturę kompilujemy), wygeneruje kod maszynowy,
+który pozwala na równoległe wykonanie operacji, jak SIMD.
+
+Tworzenie zoptymalizowanych grafów obliczeniowych pod różne akceleratory jest kluczowe dla języka, który jest wykorzystywany do uczenia maszynowego. Mojo wykorzystuje do tego API MAX Graph (inny produkt od firmy Modular).
+
+```py
+from typing import Any
+import numpy as np
+from max import engine
+from max.dtype import DType
+from max.graph import DeviceRef, Graph, TensorType, ops
+
+def add_tensors(a: np.ndarray, b: np.ndarray) -> dict[str, Any]:
+    # Symbolic tensor
+    input_type = TensorType(
+        dtype=DType.float32, shape=(1,), device=DeviceRef.CPU()
+    )
+    with Graph(
+        "simple_add_graph", input_types=(input_type, input_type)
+    ) as graph:
+        # Wszystkie obliczenia tutaj są leniwe
+        # i nie są wykonywane od razu
+
+        # Budowanie grafu
+        lhs, rhs = graph.inputs
+        out = ops.add(lhs, rhs)
+        graph.output(out)
+
+        # Stworzenie sesji, która ładuje graf i go wykonuje. Ten krok zamienia nasz abstrakcyjny graf w obliczeniowy model, który można wykonać.
+        session = engine.InferenceSession()
+        model = session.load(graph)
+
+        # Wykonanie grafu
+        ret = model.execute(a, b)[0]
+        return ret
+
+if __name__ == "__main__":
+    input0 = np.array([1.0], dtype=np.float32)
+    input1 = np.array([1.0], dtype=np.float32)
+    add_tensors(input0, input1)
+```
 
 ## Automatyczna optymalizacja
 
