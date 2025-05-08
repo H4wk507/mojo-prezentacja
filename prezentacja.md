@@ -604,16 +604,23 @@ Benchmark 1: ./main
 
 Jak widać, w takim prostym przypadku, gdzie kod jest niemal identyczny i nie wykorzystaliśmy żadnych optymalizacyjnych sztuczek, które Mojo oferuje, to Mojo jest dużo szybsze od Pythona. Jest to głównie zasługa kompilacji Mojo do niskopoziomowego kodu, którego czas wykonania jest znacznie krótszy niż w przypadku Pythona, który musi interpretować kod w czasie wykonywania. Jak i również zastosowania wielu metod optymalizacji, m.in uniknięcie sprawdzania typów, dzięki statycznemu typowaniu, tail call optimization dla rekurencji i branch prediction.
 
+## Benchmark pokazujący możliwości optymalizacyjne
+
+RTX 3080 10GB 29.2TFLOPs
+
+TODO: wyjasnic co tu sie dzieje, tylko high-level, nie porównywać mojo vs numpy, bo to bez sensu, tylko pokazac mozliwości optymalizacyjne pod dany hardware
+
+benchmarks.mojo
+
+![benchmark](./bench.jpeg)
+
 ## TODO: wiecej przykładów i bardziej szczegółowe przejscie przez jakis fajny przykład, aby kupic czas i pokazanie benchmarków
 
-## TODO: moze jakis przyklad z modelem ML?
-
-## TODO: benchmark z GPU, ale wynając maszyne z GPU, które wspiera mikroarchitekture Ampere
+## TODO: moze jakis przyklad z modelem ML? - obecnie slabo z treningiem, bo trzebaby pisać własny autograd from scratch uzywajac grafów obliczeniowych, ale do inferencji mojo jest git
 
 ## TODO: po skonczeniu wszystkiego - cleanup
 
-https://docs.modular.com/max/tutorials/build-custom-ops
-
+## TODO: pokazanie struktury prezentacji na poczatku
 
 ## Grafy obliczeniowe
 
@@ -873,22 +880,18 @@ Dzięki temu:
 
 To podejście idealnie sprawdza się w systemach, gdzie czas wykonania i deterministyczność mają kluczowe znaczenie — np. przy inferencji modeli AI w czasie rzeczywistym.
 
-## Roadmapa Mojo i aktualny status
+## Gotowość produkcyjna
 
-Mojo jest wciąż rozwijany i dostępny obecnie przez **Mojo Playground** – specjalne środowisko przeglądarkowe dostępne po zapisaniu się do testów (https://www.modular.com/mojo).
+Mojo obecnie pozostaje w fazie rozwojowej i ma bardzo niestabilne API - częste zmiany w podstawowych elementach języka. Stabilne wsparcie na Linux i MacOS, eksperymentalne na Windows poprzez WSL.
 
-## Aktualne ograniczenia:
+Firma Modular planuje stabilizacje kluczowych API i bibliotek na koniec 2025. Pełnoprawna wersja 1.0, która wprowadzi gwarancje kompatybilności wstecznej przewidywana jest na drugi kwartał 2026 roku.
 
-- Brak w pełni rozwiniętego systemu paczek
-- Brak dokumentacji pełnej wersji języka (dostępny tylko subset)
-- Język jest jeszcze w fazie testów i społeczność co chwile wprowadza niekompatybilne zmiany, przez co większość kodu/przykładów przestaje działać.
+Na obecnym etapie Mojo najlepiej sprawdza się w roli narzędzia eksperymentalnego.
+Jest to idealny moment na prototypowanie, poznawanie ekosystemu i ocenę potencjalnych korzyści wydajnościowych.
 
-## Planowane funkcje:
+Decyzję o produkcyjnym wdrożeniu Mojo należy uzależnić od kilku kluczowych czynników. Pierwszym z nich jest stabilność kompilatorów na docelowych platformach. Równie istotny jest ekosystem bibliotek, choć Mojo zapewnia interoperacyjność z bibliotekami z Pythona, natywne implementacje zapewnią lepszą wydajność. Niezbędnym elementem dojrzałości są również narzędzia deweloperskie, jak debugery, profilery czy wtyczki do IDE. Na koniec, warto zwrócić uwagę na wsparcie społeczności i dostępność dokumentacji.
 
-- Integracja z popularnymi IDE jak VS Code czy PyCharm (VSCode już ma wtyczke Mojo)
-- Integracja z istniejącymi projektami ML
-- System paczek i menedżer zależności
-- Obsługa większej liczby backendów sprzętowych (CPU, GPU, FPGA)
+## Podsumowanie
 
 Mojo ma potencjał stać się "językiem Pythona 2.0" dla AI, oferując nowy standard w wydajności i skalowalności, jednocześnie zachowując prostotę, wprowadzając abstrakcje i optymalizacje pod różne akceleratory obliczeniowe. Nie da się ukryć, że jest to wciąż język w fazie intensywnego rozwoju. Deweloperzy Mojo ciągle eksperymentują ze składnią i różnymi podejściami do rozwiązywania problemów, przez co wiele rzeczy może się zmieniać z dnia na dzień.
 
