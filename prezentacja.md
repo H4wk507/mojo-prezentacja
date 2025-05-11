@@ -604,19 +604,54 @@ Benchmark 1: ./main
 
 Jak widać, w takim prostym przypadku, gdzie kod jest niemal identyczny i nie wykorzystaliśmy żadnych optymalizacyjnych sztuczek, które Mojo oferuje, to Mojo jest dużo szybsze od Pythona. Jest to głównie zasługa kompilacji Mojo do niskopoziomowego kodu, którego czas wykonania jest znacznie krótszy niż w przypadku Pythona, który musi interpretować kod w czasie wykonywania. Jak i również zastosowania wielu metod optymalizacji, m.in uniknięcie sprawdzania typów, dzięki statycznemu typowaniu, tail call optimization dla rekurencji i branch prediction.
 
-## Benchmark pokazujący możliwości optymalizacyjne
+## Benchmark pokazujący możliwości optymalizacyjne w Mojo
 
-RTX 3080 10GB 29.2TFLOPs
+Przetestowaliśmy 2 funkcje: 
 
-TODO: wyjasnic co tu sie dzieje, tylko high-level, nie porównywać mojo vs numpy, bo to bez sensu, tylko pokazac mozliwości optymalizacyjne pod dany hardware
-
-benchmarks.mojo
+- `top_k` - funkcja, która zwraca k największych elementów dla każdego wiersza macierzy.
+- `matmul` - funkcja, która mnoży dwie macierze.
 
 ![benchmark](./bench.jpeg)
 
-## TODO: wiecej przykładów i bardziej szczegółowe przejscie przez jakis fajny przykład, aby kupic czas i pokazanie benchmarków
+RTX 3080 10GB 29.2TFLOPs
 
-## TODO: moze jakis przyklad z modelem ML? - obecnie slabo z treningiem, bo trzebaby pisać własny autograd from scratch uzywajac grafów obliczeniowych, ale do inferencji mojo jest git
+- met (ms) - uśredniony running time przez liczbę `iters`.
+- iters - liczba powtórzen testu.
+- GFLOPS/s - liczba operacji zmiennoprzecinkowych na sekunde podczas testu (w miliardach).
+- GElems/s - liczba elementów przetworzonych na sekunde podczas testu (w miliardach).
+
+### top_k
+
+Liczba elementów: 1mln, wierszy: 30k, k: 32.
+
+Implementacja na CPU wymaga przejścia przez wszystkie wiersze, posortowanie elementów tych wierszy i wybrania k największych. Jesteśmy w stanie przetwarzać wiersze równolegle, ale jesteśmy ograniczeni przez liczbę rdzeni na CPU.
+
+Implementacja na GPU przetwarza każdy wiersz równolegle przez osobny blok wątków. Dodatkowo zamiast sortować cały wiersz, co jest czasochłonne, to wykorzystuje równoległe porównywanie wartości między wieloma wątkami jednocześnie. Każdy wątek odpowiada za jeden element danych, a specjalne operacje GPU pozwalają wątkom szybko wymieniać się informacjami i wybierać największe wartości. GPU przechowuje te kandydujące elementy w szybkiej pamięci współdzielonej, a następnie iteracyjnie znajduje kolejne maksima, usuwając je z dalszych rozważań.
+
+W skrócie dla CPU jesteśmy ograniczeni przez kilka rdzeni, jakie CPU oferuje, i powolne sortowanie. Na GPU jesteśmy w stanie wszystko policzyć używając tysięcy wątków.
+Uwaga: Istnieje lepszy algorytm znajdywania k największych wartości na CPU niż sortowanie całej listy, jak np. min-heap, ale wtedy i tak GPU będzie szybsze dla dużych zbiorów
+danych, więc użyliśmy sortowania dla prostszej implementacji.
+
+### matmul
+
+Liczba elementów: 1mln, rozmiar macierzy: 1028x1028.
+
+Implementacja na CPU wykonuje podstawowe mnożenie macierzy przez potrójną pętlę.
+
+Implementacja na GPU oferuje wiele poziomów optymalizacji:
+
+- Naiwna implementacja - każdy wątek oblicza jeden element macierzy wynikowej trzymany w pamięci globalnej.
+- Optymalizacja dostępu do pamięci - zmienia sposób, w jaki wątki odczytują dane z pamięci, aby sąsiadujące wątki czytały sąsiadujące komórki pamięci, co przyspiesza transfer danych. (Podobnie jak cache locality w CPU).
+- Kafelkowanie - dzieli duże macierze na mniejsze fragmenty (kafelki), które są ładowane do szybkiej pamięci współdzielonej GPU. Grupa wątków (zwana blokiem) współpracuje nad jednym fragmentem wyniku. 
+- Optymalizacja rejestrów - rozbudowuje technikę kafelkowania, przechowując jeszcze mniejsze fragmenty danych w najszybszych pamięciach procesora (rejestrach). Zamiast obliczać tylko jeden element wyniku, każdy wątek przetwarzania na GPU odpowiada teraz za obliczenie kilku elementów macierzy wynikowej. 
+- Kafelkowanie blokowe 2D - każdy kafelek jest dodatkowo dzielony na mniejsze, dwuwymiarowe pod-kafelki, które są przydzielane pojedynczym wątkom, co zwiększa wydajność przetwarzania danych.
+- Dostęp zwektoryzowany - wykorzystuje operacje wektorowe do jednoczesnego ładowania/zapisywania wielu elementów, maksymalizując przepustowość pamięci.
+- Rdzenie Tensor - korzysta ze specjalnych jednostek sprzętowych w nowszych GPU NVIDIA, zaprojektowanych specjalnie do mnożenia macierzy. (RTX 3080 ma ich 272).
+
+Wydajność rośnie z każdym poziomem optymalizacji - od prostej implementacji CPU (~2 GFLOPS) do zaawansowanej implementacji GPU z rdzeniami Tensor (~11,000 GFLOPS), co daje przyspieszenie nawet 5500x dla dużych macierzy.
+
+
+## TODO: moze jakis przyklad z modelem ML? - Z treningiem sieci jest slabo, bo nie ma jeszcze wygodnych wrapperów jak w pytorchu i trzeba być cracked autystą by pisać własny autograd od zera, ale jest to możliwe. Natomiast Mojo można użyć do inferencji i (chyba) optymalizacje inferencji. Napisać o tych problemach z treningiem i może przykład tej inferencji i optymalizacji w Mojo???.
 
 ## TODO: po skonczeniu wszystkiego - cleanup
 
