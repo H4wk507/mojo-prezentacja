@@ -1,4 +1,26 @@
-# Wprowadzenie
+# Mojo - Język programowania dla AI
+
+## Spis treści
+- [Wprowadzenie](#wprowadzenie)
+- [Geneza](#geneza)
+- [GPU/TPU/NPU porównanie](#gpu-tpu-npu-porównanie)
+- [MLIR](#czym-jest-mlir)
+- [Dialekty i CFG](#dialekty)
+- [Integracja z Pythonem](#ale-dlaczego-python)
+- [Praktyczne zastosowanie](#w-praktyce)
+- [Przykłady kodu](#przykład-1-fibbonacci)
+- [Porównanie z CUDA](#porównanie-z-cuda)
+- [Kernele i dyspatchery](#kernele)
+- [Benchmarki](#benchmark-mojo-vs-python)
+- [Zastosowania w ML](#mojo-w-zastosowaniach-ml)
+- [Grafy obliczeniowe](#grafy-obliczeniowe)
+- [Zarządzanie pamięcią](#zarządzanie-pamięcią)
+- [Ownership system](#ownership-system-z-rusta)
+- [Gotowość produkcyjna](#gotowość-produkcyjna)
+- [Podsumowanie](#podsumowanie)
+
+
+## Wprowadzenie
 
 Język flagowy Mojo jest flagowym produktem firmy Modular, zjamującej się tworzeniem narzędzi i technologii dla programistów sztucznej inteligencji. Jego celem jest połączenie wydajności C++ z prostotą i ekosystemem Pythona. Dzięki umożliwieniu programowania zarówno pod CPU oraz akceleratory GPU, znajduje on zastosowanie w uczeniu maszynowym i obliczeniach numerycznych.
 ![Logo Mojo](https://cdn.prod.website-files.com/63f9f100025c058594957cca/65df9332b319cb9989698874_mojo.jpg)
@@ -214,7 +236,7 @@ Porównanie z Mojo:
 
 ![Logo JAX](https://preview.redd.it/the-jax-logo-v0-mcrezb1fy9bb1.png?auto=webp&s=81b1cd55dd5b0580081bf2bb188dc65849a101c7)
 
-# W praktyce
+## W praktyce
 
 Mojo jest aktualnie dostępny na systemach Linux oraz MacOS. Eksperymentalne wsparcie systemu Windows oparte jest na zintegrowanym środowisku Windows Subsystem for Linux (Nam nie udało się na nim wiele zdziałać). Skorzystać z Mojo możemy poprzez narzędzie CLI Magic, które służy do interakcji z produktami firmy Modular. Jego instalacja sprowadza się do wykonania zapytania CURL pod odpowiedni adres (Jest on generowany automatycznie po wejściu w dokumentację)
 
@@ -679,10 +701,6 @@ curl -N http://0.0.0.0:8000/v1/chat/completions -H "Content-Type: application/js
 ```
 
 Cały kod inferencji jest wykonywany na backendzie Mojo, co pozwala na optymalizację i przyspieszenie działania modelu.
-
-## TODO: po skonczeniu wszystkiego - cleanup
-
-## TODO: pokazanie struktury prezentacji na poczatku
 
 ## Grafy obliczeniowe
 
