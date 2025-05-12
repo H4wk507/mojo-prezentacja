@@ -218,11 +218,6 @@ Porównanie z Mojo:
 
 Mojo jest aktualnie dostępny na systemach Linux oraz MacOS. Eksperymentalne wsparcie systemu Windows oparte jest na zintegrowanym środowisku Windows Subsystem for Linux (Nam nie udało się na nim wiele zdziałać). Skorzystać z Mojo możemy poprzez narzędzie CLI Magic, które służy do interakcji z produktami firmy Modular. Jego instalacja sprowadza się do wykonania zapytania CURL pod odpowiedni adres (Jest on generowany automatycznie po wejściu w dokumentację)
 
-TODO:
-#Linux logo#
-#MacOS logo#
-#WSL logo tylko przekreślone bo to był bolesny żart#
-
 ```bash
 curl -ssL https://magic.modular.com/deb13af9-76a7-4aa4-b9a3-98fc64f58c8e | bash
 ```
@@ -651,7 +646,39 @@ Implementacja na GPU oferuje wiele poziomów optymalizacji:
 Wydajność rośnie z każdym poziomem optymalizacji - od prostej implementacji CPU (~2 GFLOPS) do zaawansowanej implementacji GPU z rdzeniami Tensor (~11,000 GFLOPS), co daje przyspieszenie nawet 5500x dla dużych macierzy.
 
 
-## TODO: moze jakis przyklad z modelem ML? - Z treningiem sieci jest slabo, bo nie ma jeszcze wygodnych wrapperów jak w pytorchu i trzeba być cracked autystą by pisać własny autograd od zera, ale jest to możliwe. Natomiast Mojo można użyć do inferencji i (chyba) optymalizacje inferencji. Napisać o tych problemach z treningiem i może przykład tej inferencji i optymalizacji w Mojo???.
+## Mojo w zastosowaniach ML
+
+Obecnie Mojo nie ma jeszcze wygodnych wrapperów do trenowania modeli ML, takich jakie udostępnia nam PyTorch. Aby trenować modele w Mojo, jesteśmy skazani implementować własne optimizery i funkcje straty, co jest czasochłonne i wymaga dużej wiedzy specjalistycznej, żeby te algorytmy działały dobrze.
+
+Możemy jednak używać Mojo do inferencji modeli uczenia maszynowego, które zostały wytrenowane w innych frameworkach. Mojo umożliwia ładowanie modeli zapisanych w różnych formatach i serwowanie ich. Zapewnia to platforma Max, która jest produktem firmy Modular.
+
+Inferencja modelu w Mojo sprowadza się do odpalenia prostej komendy dockera:
+
+```bash
+docker run --gpus 1 \
+    -v ~/.cache/huggingface:/root/.cache/huggingface \
+    --env "HF_HUB_ENABLE_HF_TRANSFER=1" \
+    --env "HF_TOKEN=${HF_TOKEN}" \
+    -p 8000:8000 \
+    docker.modular.com/modular/max-nvidia-base:nightly \
+    --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+```
+
+Nasz model jest teraz dostępny pod odpowiednim portem, i możemy go używać do inferencji.
+
+```bash
+Server ready on http://0.0.0.0:8000 (Press CTRL+C to quit)
+
+curl -N http://0.0.0.0:8000/v1/chat/completions -H "Content-Type: application/json" -d '{
+    "model": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+    "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Who won the World Series in 2020?"}
+    ]
+}'
+```
+
+Cały kod inferencji jest wykonywany na backendzie Mojo, co pozwala na optymalizację i przyspieszenie działania modelu.
 
 ## TODO: po skonczeniu wszystkiego - cleanup
 
@@ -929,4 +956,3 @@ Decyzję o produkcyjnym wdrożeniu Mojo należy uzależnić od kilku kluczowych 
 ## Podsumowanie
 
 Mojo ma potencjał stać się "językiem Pythona 2.0" dla AI, oferując nowy standard w wydajności i skalowalności, jednocześnie zachowując prostotę, wprowadzając abstrakcje i optymalizacje pod różne akceleratory obliczeniowe. Nie da się ukryć, że jest to wciąż język w fazie intensywnego rozwoju. Deweloperzy Mojo ciągle eksperymentują ze składnią i różnymi podejściami do rozwiązywania problemów, przez co wiele rzeczy może się zmieniać z dnia na dzień.
-
