@@ -1,6 +1,7 @@
 # Mojo - Język programowania dla AI
 
 ## Spis treści
+
 - [Wprowadzenie](#wprowadzenie)
 - [Geneza](#geneza)
 - [GPU/TPU/NPU porównanie](#gpu-tpu-npu-porównanie)
@@ -18,7 +19,6 @@
 - [Ownership system](#ownership-system-z-rusta)
 - [Gotowość produkcyjna](#gotowość-produkcyjna)
 - [Podsumowanie](#podsumowanie)
-
 
 ## Wprowadzenie
 
@@ -170,6 +170,7 @@ Mimo swoich licznych wad, niepodważalną zaletą pythona jest ogromny i dojrza�
 Dodatkowo, jego minimalistyczna i zwięzła forma idealnie nadaje się do analizy i optymalizacji przez MLIR.
 
 Przykładowe użycie paczek pythonowych w Mojo
+
 ```py
 from python import Python
 
@@ -206,6 +207,7 @@ Mojo, jako nowy język programowania, który łączy łatwość użycia Pythona 
 1. Cython - język programowania, który również jest nadzbiorem Pythona. Pozwala na pisanie kodu, który jest kompilowany do C, co znacznie przyspiesza jego wykonanie. Jest szeroko stosowany do optymalizacji istniejących bibliotek Pythona, takich jak NumPy.
 
 Porównanie z Mojo:
+
 - Cython wymaga nauki dodatkowej, specyficznej składni i ręcznej optymalizacji. Efektywne go wykorzystanie jest czasochłonne i wymaga zaawansowanej wiedzy oraz lat doświadczenia
 
 - Mojo oferuje głębszą integrację z MLIR, dzięki czemu jest w stanie osiągnąć lepszą wydajność. Wykorzystuje do tego analizę grafu przepływu by wprowadzić zaawansowane optymalizacje w miejscach, w których nawet najbardziej doświadczeni programiści zawiodą.
@@ -354,7 +356,6 @@ Widoczne różnice:
 
 Warto też dodać, że Tensor w Mojo został napisany w taki sposób, aby wykorzystywał instrukcje SIMD, tam gdzie jest to możliwe, co pozwala na równoległe przetwarzanie danych na macierzach. Mojo jest też w stanie wywnioskować rozmiar rejestrów SIMD na podstawie architektury obliczeniowej użytkownika.
 
-
 ## Porównanie z CUDA
 
 CUDA wymaga znajomości C/C++ oraz specyficznych konstrukcji NVIDIA, co tworzy wysoką barierę wejścia dla specjalistów data science, którzy zazwyczaj mają doświadczenie tylko w Pythonie. Dodatkowo działa tylko na kartach NVIDIA.
@@ -368,8 +369,8 @@ Kernel jest to po prostu funckja wykonywana na wysokiej przepustowości akcelera
 Zdefiniujmy funkcje, która dodaje dwa wektory na CPU i kernel, który dodaje je na GPU.
 
 ```py
-fn _vector_addition_cpu(out: ManagedTensorSlice[mut=True], 
-                       lhs: ManagedTensorSlice, 
+fn _vector_addition_cpu(out: ManagedTensorSlice[mut=True],
+                       lhs: ManagedTensorSlice,
                        rhs: ManagedTensorSlice):
     var vector_length = out.dim_size(0)
     for i in range(vector_length):
@@ -377,15 +378,15 @@ fn _vector_addition_cpu(out: ManagedTensorSlice[mut=True],
         var result = lhs.load[1](idx) + rhs.load[1](idx)
         out.store[1](idx, result)
 
-fn _vector_addition_gpu(out: ManagedTensorSlice[mut=True], 
-                       lhs: ManagedTensorSlice, 
-                       rhs: ManagedTensorSlice, 
+fn _vector_addition_gpu(out: ManagedTensorSlice[mut=True],
+                       lhs: ManagedTensorSlice,
+                       rhs: ManagedTensorSlice,
                        ctx: DeviceContextPtr):
     # Rozmiar bloku - liczba wątków w jednym bloku
     alias BLOCK_SIZE = 16
     var gpu_ctx = ctx.get_device_context()
     var vector_length = out.dim_size(0)
-    
+
     # Definicja kernela GPU
     @parameter
     fn vector_addition_gpu_kernel(length: Int):
@@ -396,10 +397,10 @@ fn _vector_addition_gpu(out: ManagedTensorSlice[mut=True],
             var idx = IndexList[out.rank](tid)
             var result = lhs.load[1](idx) + rhs.load[1](idx)
             out.store[1](idx, result)
-    
+
     # Obliczenie liczby bloków potrzebnych do pokrycia całego wektora
     var num_blocks = ceildiv(vector_length, BLOCK_SIZE)
-    
+
     # Uruchomienie kernela na GPU
     gpu_ctx.enqueue_function[vector_addition_gpu_kernel](
         vector_length, grid_dim=num_blocks, block_dim=BLOCK_SIZE
@@ -442,12 +443,12 @@ from max.graph import DeviceRef, Graph, TensorType, ops
 
 if __name__ == "__main__":
     mojo_kernels = Path(__file__).parent / "kernels"
-    
+
     vector_width = 10
     dtype = DType.float32
-    
+
     device = CPU() if accelerator_count() == 0 else Accelerator()
-    
+
     with Graph(
         "vector_addition",
         input_types=[
@@ -457,35 +458,34 @@ if __name__ == "__main__":
         custom_extensions=[mojo_kernels],
     ) as graph:
         lhs, rhs = graph.inputs
-        
+
         output = ops.custom(
             name="vector_addition",  # Nazwa kernela
             values=[lhs, rhs],       # Wejścia
-            out_types=[TensorType(dtype=lhs.tensor.dtype, shape=lhs.tensor.shape, 
+            out_types=[TensorType(dtype=lhs.tensor.dtype, shape=lhs.tensor.shape,
                       device=DeviceRef.from_device(device))]
         )[0].tensor
-        
+
         graph.output(output)
-    
+
     session = InferenceSession(devices=[device])
-    
+
     # Skompilowanie grafu pod wybrane urządzenie
     model = session.load(graph)
-    
+
     lhs_values = np.random.uniform(size=(vector_width)).astype(np.float32)
     rhs_values = np.random.uniform(size=(vector_width)).astype(np.float32)
-    
+
     lhs_tensor = Tensor.from_numpy(lhs_values).to(device)
     rhs_tensor = Tensor.from_numpy(rhs_values).to(device)
-    
+
     # Wykonanie obliczenia
     result = model.execute(lhs_tensor, rhs_tensor)[0]
-    
+
     result = result.to(CPU())
     print("Wynik:", result.to_numpy())
     print("Oczekiwany wynik:", lhs_values + rhs_values) # wykona sie na CPU
 ```
-
 
 ## Porównanie prostszych kerneli - CUDA vs Mojo
 
@@ -580,6 +580,7 @@ fn main():
 Mojo celuje w wydajność zbliżoną do C. Przykład prostego benchmarku pokazuje różnicę między Pythonem a Mojo dla funkcji rekurencyjnej:
 
 Python:
+
 ```py
 def fib(n: int) -> int:
     if n <= 1:
@@ -600,6 +601,7 @@ Benchmark 1: python3 main.py
 ```
 
 Mojo:
+
 ```mojo
 fn fib(n: Int) -> Int:
     if n <= 1:
@@ -623,7 +625,7 @@ Jak widać, w takim prostym przypadku, gdzie kod jest niemal identyczny i nie wy
 
 ## Benchmark pokazujący możliwości optymalizacyjne w Mojo
 
-Przetestowaliśmy 2 funkcje: 
+Przetestowaliśmy 2 funkcje:
 
 - `top_k` - funkcja, która zwraca k największych elementów dla każdego wiersza macierzy.
 - `matmul` - funkcja, która mnoży dwie macierze.
@@ -659,14 +661,13 @@ Implementacja na GPU oferuje wiele poziomów optymalizacji:
 
 - Naiwna implementacja - każdy wątek oblicza jeden element macierzy wynikowej trzymany w pamięci globalnej.
 - Optymalizacja dostępu do pamięci - zmienia sposób, w jaki wątki odczytują dane z pamięci, aby sąsiadujące wątki czytały sąsiadujące komórki pamięci, co przyspiesza transfer danych. (Podobnie jak cache locality w CPU).
-- Kafelkowanie - dzieli duże macierze na mniejsze fragmenty (kafelki), które są ładowane do szybkiej pamięci współdzielonej GPU. Grupa wątków (zwana blokiem) współpracuje nad jednym fragmentem wyniku. 
-- Optymalizacja rejestrów - rozbudowuje technikę kafelkowania, przechowując jeszcze mniejsze fragmenty danych w najszybszych pamięciach procesora (rejestrach). Zamiast obliczać tylko jeden element wyniku, każdy wątek przetwarzania na GPU odpowiada teraz za obliczenie kilku elementów macierzy wynikowej. 
+- Kafelkowanie - dzieli duże macierze na mniejsze fragmenty (kafelki), które są ładowane do szybkiej pamięci współdzielonej GPU. Grupa wątków (zwana blokiem) współpracuje nad jednym fragmentem wyniku.
+- Optymalizacja rejestrów - rozbudowuje technikę kafelkowania, przechowując jeszcze mniejsze fragmenty danych w najszybszych pamięciach procesora (rejestrach). Zamiast obliczać tylko jeden element wyniku, każdy wątek przetwarzania na GPU odpowiada teraz za obliczenie kilku elementów macierzy wynikowej.
 - Kafelkowanie blokowe 2D - każdy kafelek jest dodatkowo dzielony na mniejsze, dwuwymiarowe pod-kafelki, które są przydzielane pojedynczym wątkom, co zwiększa wydajność przetwarzania danych.
 - Dostęp zwektoryzowany - wykorzystuje operacje wektorowe do jednoczesnego ładowania/zapisywania wielu elementów, maksymalizując przepustowość pamięci.
 - Rdzenie Tensor - korzysta ze specjalnych jednostek sprzętowych w nowszych GPU NVIDIA, zaprojektowanych specjalnie do mnożenia macierzy. (RTX 3080 ma ich 272).
 
 Wydajność rośnie z każdym poziomem optymalizacji - od prostej implementacji CPU (~2 GFLOPS) do zaawansowanej implementacji GPU z rdzeniami Tensor (~11,000 GFLOPS), co daje przyspieszenie nawet 5500x dla dużych macierzy.
-
 
 ## Mojo w zastosowaniach ML
 
@@ -709,6 +710,7 @@ Graf obliczeniowy to struktura danych, która reprezentuje operacje obliczeniowe
 ![Graf obliczeniowy](https://discuss.pytorch.org/uploads/default/original/3X/0/3/0357bad8bd423d8a12b5e528dc68dca3773c4b54.png)
 
 Przykład optymalizacji, jakie możemy wykonać mając graf obliczeniowy, to m.in fuzja operacji:
+
 ```
 c = a + b
 d = b * c
@@ -721,6 +723,7 @@ d = b * (a + b)
 Dzięki leniwego wykonania, węzły grafu nie są wykonywane od razu, a jedynie wtedy, gdy są potrzebne. Pozwala to na optymalizację obliczeń i zmniejszenie liczby operacji.
 
 Czy paralelizacja operacji:
+
 ```
 c = a * b
 e = c * d
